@@ -54,11 +54,20 @@ int main (int argc, char **argv)
 	/* lettura e inserimento dati*/
 	if (menum == 0)
 	{
-		printf("Inserire il numero di elementi da sommare: ");
-		fflush(stdout);
-		scanf("%d",&n);
+		if (argc < 2) {
+			printf("[P%d] Numero di parametri insufficiente!", menum);
+			exit(EXIT_FAILURE);
+		}
+		else {
+			n = atoi(argv[1]);
+		}
+		printf("[P%d] Addizione di %d numeri reali.\n", menum, n);
+
+		// printf("Inserire il numero di elementi da sommare: ");
+		// fflush(stdout);
+		// scanf("%d",&n);
 		
-       	vett = (float*) calloc(n, sizeof(float));
+       	vett = calloc(n, sizeof *vett);
 	}
 
 	/*invio del valore di n a tutti i processori appartenenti a MPI_COMM_WORLD*/
@@ -67,70 +76,57 @@ int main (int argc, char **argv)
 	
     
     /*numero di addendi da assegnare a ciascun processore*/
-	nlocgen=n/nproc; // divisione intera
+	nlocgen = n/nproc; // divisione intera
 	
-    resto=n%nproc; // resto della divisione
+    resto = n%nproc; // resto della divisione
 
 	/* Se resto è non nullo, i primi resto processi ricevono un addento in più */
-	if(menum<resto)
-	{
-		nloc=nlocgen+1;
+	if (menum < resto) {
+		nloc = nlocgen+1;
 	}
-	else
-	{
-		nloc=nlocgen;
+	else {
+		nloc = nlocgen;
 	}
 	
 	
     /*allocazione di memoria del vettore per le somme parziali */
-    
-	vett_loc=(float*)calloc(nloc, sizeof(float));
+	vett_loc = calloc(nloc, sizeof *vett_loc);
 
 	// P0 genera e assegna gli elementi da sommare
-    
-	if (menum==0)
-	{
+	if (menum == 0) {
         /*Inizializza la generazione random degli addendi utilizzando l'ora attuale del sistema*/                
         srand((unsigned int) time(0)); 
 		
-        for(i=0; i<n; i++)
-		{
+        for(i=0; i<n; i++) {
 			/*creazione del vettore contenente numeri casuali */
 			*(vett + i) = ((float)rand() / (float)(RAND_MAX / 50)) + 1;
 		}
 		
    		// Stampa del vettore che contiene i dati da sommare, se sono meno di 100 
-		if (n<100)
-		{
-			for (i=0; i<n; i++)
-			{
+		if (n < 100) {
+			for (i=0; i<n; i++) {
 				printf("\n\nElemento %d del vettore %f =", i, *(vett+i));
 			}
         }
 
-	// assegnazione dei primi addendi a P0
-        
-        for(i=0;i<nloc;i++)
-		{
+		// assegnazione dei primi addendi a P0
+        for (i = 0; i < nloc; i++) {
 			*(vett_loc+i)=*(vett+i);
 		}
-  
-  	// ind è il numero di addendi già assegnati     
-			ind=nloc;
+
+  		// ind è il numero di addendi già assegnati     
+		ind = nloc;
         
 		/* P0 assegna i restanti addendi agli altri processori */
-		for(i=1; i<nproc; i++)
-		{
+		for (i = 1; i < nproc; i++) {
 			tag=i; /* tag del messaggio uguale all'id del processo che riceve*/
 			/*SE ci sono addendi in sovrannumero da ripartire tra i processori*/
-            if (i<resto) 
-			{
+            if (i < resto) {
 				/*il processore P0 gli invia il corrispondete vettore locale considerando un addendo in piu'*/
 				MPI_Send(vett+ind,nloc,MPI_INT,i,tag,MPI_COMM_WORLD);
 				ind=ind+nloc;
 			} 
-			else 
-			{
+			else {
 				/*il processore P0 gli invia il corrispondete vettore locale*/
 				MPI_Send(vett+ind,nlocgen,MPI_INT,i,tag,MPI_COMM_WORLD);
 				ind=ind+nlocgen;
@@ -139,25 +135,20 @@ int main (int argc, char **argv)
 	}
 	 
     /*SE non siamo il processore P0 riceviamo i dati trasmessi dal processore P0*/
-    else
-    {
+    else {
 		// tag è uguale numero di processore che riceve
-		tag=menum;
+		tag = menum;
   
 		/*fase di ricezione*/
 		MPI_Recv(vett_loc,nloc,MPI_INT,0,tag,MPI_COMM_WORLD,&info);
 	}// end if
 
-   
-	
-	/* sincronizzazione dei processori del contesto MPI_COMM_WORLD*/
-	
+	/* sincronizzazione dei processori del contesto MPI_COMM_WORLD*/	
 	MPI_Barrier(MPI_COMM_WORLD);
  
 	T_inizio=MPI_Wtime(); //inizio del cronometro per il calcolo del tempo di inizio
 
-	for(i=0;i<nloc;i++)
-	{
+	for(i=0;i<nloc;i++) {
 		/*ogni processore effettua la somma parziale*/
 		sommaloc=sommaloc+*(vett_loc+i);
 	}
@@ -165,8 +156,7 @@ int main (int argc, char **argv)
 	//  calcolo di p=log_2 (nproc)
 	p=nproc;
 
-	while(p!=1)
-	{
+	while (p!=1) {
 		/*shifta di un bit a destra*/
 		p=p>>1;
 		passi++;
@@ -175,27 +165,23 @@ int main (int argc, char **argv)
 	/* creazione del vettore potenze, che contiene le potenze di 2*/
 	potenze=(int*)calloc(passi+1,sizeof(int));
 		
-	for(i=0;i<=passi;i++)
-	{
+	for(i=0;i<=passi;i++) {
 		potenze[i]=p<<i;
 	}
 
 	/* calcolo delle somme parziali e combinazione dei risultati parziali */
-	for(i=0;i<passi;i++)
-	{
+	for (i=0;i<passi;i++) {
 		// ... calcolo identificativo del processore
-		r=menum%potenze[i+1];
+		r = menum % potenze[i+1];
 		
 		// Se il resto è uguale a 2^i, il processore menum invia
-		if(r==potenze[i])
-		{
+		if (r == potenze[i]) {
 			// calcolo dell'id del processore a cui spedire la somma locale
 			sendTo=menum-potenze[i];
 			tag=sendTo;
 			MPI_Send(&sommaloc,1,MPI_INT,sendTo,tag,MPI_COMM_WORLD);
 		}
-		else if(r==0) // se il resto è uguale a 0, il processore menum riceve
-		{
+		else if (r==0) { // se il resto è uguale a 0, il processore menum riceve
 			recvBy=menum+potenze[i];
 			tag=menum;
 			MPI_Recv(&tmp,1,MPI_INT,recvBy,tag,MPI_COMM_WORLD,&info);
@@ -211,12 +197,11 @@ int main (int argc, char **argv)
 	MPI_Reduce(&T_fine,&T_max,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);
 
 	/*stampa a video dei risultati finali*/
-	if(menum==0)
-	{
-		printf("\nProcessori impegnati: %d\n", nproc);
-		printf("\nLa somma e': %f\n", sommaloc);
-		printf("\nTempo calcolo locale: %lf\n", T_fine);
-		printf("\nMPI_Reduce max time: %f\n",T_max);
+	if (menum == 0) {
+		// printf("\nProcessori impegnati: %d\n", nproc);
+		printf("La somma e': %f\n", sommaloc);
+		printf("Tempo calcolo locale: %lf\n", T_fine);
+		printf("MPI_Reduce max time: %f\n",T_max);
 	}// end if
  
 	/*routine chiusura ambiente MPI*/

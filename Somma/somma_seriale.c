@@ -27,9 +27,17 @@ int main(int argc, char *argv[]) {
 
 //	N = atoi(argv[1]);
 //	if (N == 0) {
-		printf("Inserire il numero di elementi da addizionare: ");
-		fflush(stdout);
-		scanf("%d", &N);
+	if (argc < 2) {
+			printf("Numero di parametri insufficiente!");
+			exit(EXIT_FAILURE);
+		}
+		else {
+			N = atoi(argv[1]);
+	}
+		printf("Addizione di %d numeri reali.\n", N);
+		// printf("Inserire il numero di elementi da addizionare: ");
+		// fflush(stdout);
+		// scanf("%d", &N);
 //	}
 	printf("Saranno generati %d numeri da %1d a %2d.\n", N, lower, upper);
 

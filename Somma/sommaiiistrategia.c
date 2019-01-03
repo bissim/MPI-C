@@ -21,7 +21,7 @@ int main(int argc, char **argv) {
 	double T_inizio, T_fine, T_max;
 
 	MPI_Status info;
-	
+
 	/*Inizializzazione dell'ambiente di calcolo MPI*/
 	MPI_Init(&argc, &argv);
 	/*assegnazione IdProcessore a menum*/
@@ -31,11 +31,20 @@ int main(int argc, char **argv) {
 
 	/* lettura e inserimento dati*/
 	if (menum == 0) {
-		printf("Inserire il numero di elementi da sommare: ");
-		fflush(stdout);
-		scanf("%d",&n);
+		if (argc < 2) {
+			printf("[P%d] Numero di parametri insufficiente!", menum);
+			exit(EXIT_FAILURE);
+		}
+		else {
+			n = atoi(argv[1]);
+		}
+		printf("[P%d] Addizione di %d numeri reali.\n", menum, n);
+
+	// 	printf("Inserire il numero di elementi da sommare: ");
+	// 	fflush(stdout);
+	// 	scanf("%d",&n);
 		
-       	vett = (float*) calloc(n, sizeof(float));
+    	vett = (float*) calloc(n, sizeof(float));
 	}
 
 	/*invio del valore di n a tutti i processori appartenenti a MPI_COMM_WORLD*/
@@ -69,11 +78,11 @@ int main(int argc, char **argv) {
 		}
 		
    		// Stampa del vettore che contiene i dati da sommare, se sono meno di 100 
-		if (n < 100) {
-			for (i = 0; i < n; i++) {
-				printf("\nElemento %d del vettore: %5.2f\n", i, *(vett + i));
-			}
-        }
+		// if (n < 100) {
+		// 	for (i = 0; i < n; i++) {
+		// 		printf("\nElemento %d del vettore: %5.2f\n", i, *(vett + i));
+		// 	}
+        // }
 
 		// assegnazione dei primi addendi a P0
         for (i = 0; i < nloc; i++) {
@@ -168,13 +177,15 @@ int main(int argc, char **argv) {
 	/* calcolo del tempo totale di esecuzione*/
 	MPI_Reduce(&T_fine,&T_max,1,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD);
 
-	printf("\n[%d] La somma e': %5.2f\n", menum, sommaloc);
+	if (menum == 0) {
+		printf("[P%d] La somma e': %5.2f\n", menum, sommaloc);
+	}
 
 	/*stampa a video dei risultati finali*/
 	if (menum==0) {
-		printf("\nProcessori impegnati: %d\n", nproc);
-		printf("\nTempo calcolo locale: %f\n", T_fine);
-		printf("\nMPI_Reduce max time: %f\n",T_max);
+		// printf("\nProcessori impegnati: %d\n", nproc);
+		printf("Tempo calcolo locale: %f\n", T_fine);
+		printf("MPI_Reduce max time: %f\n",T_max);
 	} // end if
 
 	/*routine chiusura ambiente MPI*/
