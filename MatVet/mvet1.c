@@ -38,7 +38,6 @@ int main(int argc, char **argv) {
         else {
             n = atoi(argv[1]);
             flag = atoi(argv[2]);
-
         }
         printf("Dimensione della matrice: %d (%d elementi)\n", n, n*n);
         fflush(stdout);
@@ -48,7 +47,7 @@ int main(int argc, char **argv) {
         MPI_Printf(me, "MPI process started!\n\n");
     }
 
-    // Se sono a radice
+    // Se sono la radice
     if (me == master) {
         // MPI_Printf(me, "inserire n = "); 
         // fflush(stdout);
