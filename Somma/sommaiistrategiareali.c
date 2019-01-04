@@ -61,7 +61,7 @@ int main (int argc, char **argv)
 		else {
 			n = atoi(argv[1]);
 		}
-		printf("[P%d] Addizione di %d numeri reali.\n", menum, n);
+		printf("Addizione di %d numeri reali.\n", n);
 
 		// printf("Inserire il numero di elementi da sommare: ");
 		// fflush(stdout);
@@ -146,7 +146,7 @@ int main (int argc, char **argv)
 	/* sincronizzazione dei processori del contesto MPI_COMM_WORLD*/	
 	MPI_Barrier(MPI_COMM_WORLD);
  
-	T_inizio=MPI_Wtime(); //inizio del cronometro per il calcolo del tempo di inizio
+	T_inizio = MPI_Wtime(); //inizio del cronometro per il calcolo del tempo di inizio
 
 	for(i=0;i<nloc;i++) {
 		/*ogni processore effettua la somma parziale*/

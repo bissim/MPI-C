@@ -53,9 +53,18 @@ int main (int argc, char **argv)
 	/* lettura e inserimento dati*/
 	if (menum == 0)
 	{
-		printf("Inserire il numero di elementi da sommare: ");
-		fflush(stdout);
-		scanf("%d",&n);
+		if (argc < 2) {
+			printf("[P%d] Numero di parametri insufficiente!", menum);
+			exit(EXIT_FAILURE);
+		}
+		else {
+			n = atoi(argv[1]);
+		}
+		printf("[P%d] Addizione di %d numeri reali.\n", menum, n);
+
+		// printf("Inserire il numero di elementi da sommare: ");
+		// fflush(stdout);
+		// scanf("%d",&n);
 
        	vett = (int*) calloc(n, sizeof(int));
 	}
