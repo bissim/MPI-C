@@ -14,16 +14,28 @@ int main(int argc, char **argv) {
     double *A, *v, *w;
 	double elapsedtime;
 	struct timespec start, stop;
+    int flag = 0;
+    const int MS_IN_S = 1000;
 
     // take matrix dimension
-    printf("Insert n: ");
-    scanf("%d", &n);
-    printf("\n");
+    // printf("Insert n: ");
+    // scanf("%d", &n);
+    // printf("\n");
+    if (argc < 3) {
+		printf("Numero di parametri insufficiente!\n");
+        fflush(stdout);
+		exit(EXIT_FAILURE);
+	}
+	else {
+		n = atoi(argv[1]);
+        flag = atoi(argv[2]);
+	}
+    printf("Dimensione della matrice: %d (%d elementi)\n", n, n*n);
     fflush(stdout);
 
     // Alloco spazio di memoria
-    A = malloc(n * n * sizeof(double));
-    v = malloc(n * sizeof(double));
+    A = malloc(n * n * sizeof *A);
+    v = malloc(n * sizeof *v);
 
     // printf("\nGenerating matrix and vector...\n");
     for (i = 0; i < n; i++) {
@@ -38,26 +50,31 @@ int main(int argc, char **argv) {
         }
     }
 
-    printf("Matrix A:\n");
-    print_matrix_array(A, n, n);
-    printf("\n");
-    printf("Vector v:\n");
-    print_matrix_array(v, n, 1);
-    printf("\n");
-    fflush(stdout);
+    if (flag) {
+        printf("Matrix A:\n");
+        print_matrix_array(A, n, n);
+        printf("\n");
+        printf("Vector v:\n");
+        print_matrix_array(v, n, 1);
+        printf("\n");
+        fflush(stdout);
+    }
 
-    w = malloc(n * sizeof(double));
+    w = malloc(n * sizeof *w);
 
     // calculate matvet product
 	clock_gettime(CLOCK_REALTIME, &start);
     prod_mat_vett(w, A, n, n, v);
 	clock_gettime(CLOCK_REALTIME, &stop);
 
-    printf("Result vector w:\n");
-    print_matrix_array(w, n, 1);
+    if (flag) {
+        printf("Result vector w:\n");
+        print_matrix_array(w, n, 1);
+    }
+
 	elapsedtime = (stop.tv_sec - start.tv_sec) + (stop.tv_nsec - start.tv_nsec) / NANOSECONDS_PER_SECOND;
-	printf("Elapsed time: %f seconds.\n", elapsedtime);
+	printf("Elapsed time: %f ms.\n", elapsedtime * MS_IN_S);
     fflush(stdout);
 
-    return 0;
+    return EXIT_SUCCESS;
 }
