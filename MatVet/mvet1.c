@@ -43,6 +43,12 @@ int main(int argc, char **argv) {
         fflush(stdout);
     }
 
+    // communicate debug print flag to other processes
+    MPI_Bcast(
+        &flag, 1, MPI_INT,
+        0, MPI_COMM_WORLD
+    );
+
     if (flag) {
         MPI_Printf(me, "MPI process started!\n\n");
     }

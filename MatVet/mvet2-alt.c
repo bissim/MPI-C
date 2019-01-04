@@ -11,7 +11,7 @@ int main (int argc, char **argv) {
     int n;                  // Dimensione della matrice
     int local_n;            // Dimensione dei dati locali
     int i, j;               // Iteratori vari
-    double T_inizio,T_fine,T_max;   // Variabili per il calcolo del tempo di esecuzione
+    double T_inizio, T_fine, T_max;   // Variabili per il calcolo del tempo di esecuzione
     int flag = 0;
     const int MS_IN_S = 1000;
 
@@ -82,6 +82,12 @@ int main (int argc, char **argv) {
         // data part for every process
         local_n = n / nproc; // TODO just master should do this
     }
+
+    // communicate debug print flag to other processes
+    MPI_Bcast(
+        &flag, 1, MPI_INT,
+        0, MPI_COMM_WORLD
+    );
 
     // master sends n and local_n
     // to other processes
@@ -176,8 +182,8 @@ int main (int argc, char **argv) {
     T_inizio = MPI_Wtime(); // inizio del cronometro per il calcolo del tempo di inizio
     for (i = 0; i < n; i++) {
         local_w[i] = 0;
-        for (j = 0; j < n; j++) {
-            local_w[i] += localAt[j*n+i] * local_v[j];
+        for (j = 0; j < local_n; j++) {
+            local_w[i] += localAt[j*n+i] * local_v[j]; // inverted indexes to transpose back
         }
     }
 
@@ -211,16 +217,17 @@ int main (int argc, char **argv) {
         fflush(stdout);
     }
 
-    if (me == 0) {
-        printf("Tempo calcolo locale: %lf ms\n", T_fine * MS_IN_S);
-        printf("MPI_Reduce max time: %f ms\n", T_max * MS_IN_S);
-    }
-
     /* calcolo del tempo totale di esecuzione*/
     MPI_Reduce(
         &T_fine, &T_max, 1, MPI_DOUBLE, MPI_MAX,
         0, MPI_COMM_WORLD
     );
+
+    if (me == 0) {
+        printf("\n");
+        printf("Tempo calcolo locale: %lf ms\n", T_fine * MS_IN_S);
+        printf("MPI_Reduce max time: %f ms\n", T_max * MS_IN_S);
+    }
 
     MPI_Finalize();
     return EXIT_SUCCESS;
