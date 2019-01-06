@@ -20,9 +20,17 @@ int main(int argc, char **argv) {
     MPI_Comm comm_grid, comm_rows, comm_cols;
     int err, dim, reorder, coord_rows, coord_cols, me_grid, me_row, me_col;
     int *ndim, *period, *coord, *belongs;
+    double T_inizio, T_fine, T_max;
+    int flag = 0;
+
     // costanti
     const int root = 0;
+    const int MS_IN_S = 1000;
     const MPI_Comm comm = MPI_COMM_WORLD;
+
+    // inizializzazione puntatori
+    A = subA = subAt = localA = local_At = v = local_v = w = local_w = row_w = NULL;
+    ndim = period = coord = belongs = NULL;
 
     // inizializzazione MPI
     err = MPI_Init(&argc, &argv);
@@ -31,23 +39,39 @@ int main(int argc, char **argv) {
     checkMPIerror(&me, &err);
     err = MPI_Comm_rank(comm, &me);
     checkMPIerror(&me, &err);
-    printf("[P%d] process started.\n\n", me);
-    // fflush(stdout);
+
+    if (me == 0) {
+        if (argc < 2) {
+            printf("Usage: <programName> <rows> <printDebug>\n");
+            fflush(stdout);
+
+            MPI_Finalize();
+            exit(EXIT_FAILURE);
+        }
+        else {
+            n = atoi(argv[1]);
+            flag = atoi(argv[2]);
+            if (flag) {
+                printf("Debug print enabled.\n");
+                fflush(stdout);
+            }
+        }
+    }
+
+    if (flag) {
+        printf("[P%d] process started.\n\n", me);
+        fflush(stdout);
+    }
 
     // creazione matrice e vettore
     if (me == root) {
-        printf("Insert n: "); 
-        fflush(stdout);
-        scanf("%d", &n);
-        printf("\n");
-
         // Porzione di dati da processare
-        sub_n = n / sqrt(nproc); // TODO controllare
-        // sub_n = n / 2;
+        sub_n = n / sqrt(nproc); // if nproc is n, there are sqrt(n) procs for row and col
+        // sub_n = n / nproc;
         
         // Alloco spazio di memoria
-        A = (float *) malloc(n * n * sizeof(float));
-        v = (float *) malloc(n * sizeof(float));
+        A = malloc(sizeof *A * n * n);
+        v = malloc(sizeof *v * n);
 
         // Create matrix A and vector v
         for (i = 0; i < n; i++) {
@@ -62,33 +86,40 @@ int main(int argc, char **argv) {
             }
         }
 
-        printf("Matrix A:\n");
-        print_matrix_array(A, n, n);
-        printf("\n\n");
+        if (flag) {
+            printf("Matrix A:\n");
+            print_matrix_array(A, n, n);
+            printf("\n\n");
 
-        printf("\nVector v:\n");
-        print_matrix_array(v, n, 1);
-        printf("\n\n");
+            printf("\nVector v:\n");
+            print_matrix_array(v, n, 1);
+            printf("\n\n");
 
-        fflush(stdout);
+            fflush(stdout);
+        }
     }
 
     // 1. partizionamento per righe della matrice e distribuzione del vettore
     dim = 2; // topology dimensions
-    ndim = (int *) calloc(dim, sizeof(int));
+    ndim = calloc(dim, sizeof *ndim);
     ndim[0] = ndim[1] = 2; // TODO modify for non-square matrices
-    period = (int *) calloc(dim, sizeof(int));
+    period = calloc(dim, sizeof *period);
     period[0] = period[1] = 0; // no periodicity over rows nor columns
     reorder = 0; // disable MPI topology optimizations
+    if (flag && me == root) {
+        printf("Creating topology...");
+    }
 
     // 1.1 creazione topologia cartesiana a griglia non toroidale
     err = MPI_Cart_create(comm, dim, ndim, period, reorder, &comm_grid); // create communication group
     err = MPI_Comm_rank(comm_grid, &me_grid); // process rank into topology
-    coord = (int *) malloc(dim * sizeof(int));
+    coord = malloc(sizeof *coord * dim);
     err = MPI_Cart_coords(comm_grid, me_grid, dim, coord); // process coordinates
     checkMPIerror(&me, &err);
-    // printf("[P%d] grid rank %d, coordinates (%d, %d)\n", me, me_grid, coord[0], coord[1]);
-    // printf("\n");
+    if (flag) {
+        printf("[P%d] grid rank %d, coordinates (%d, %d)\n", me, me_grid, coord[0], coord[1]);
+        printf("\n");
+    }
     // fflush(stdout);
     // if (me == root) {
     //     free(ndim);
@@ -100,19 +131,23 @@ int main(int argc, char **argv) {
     checkMPIerror(&me, &err);
     err = MPI_Bcast(&sub_n, 1, MPI_INT, root, comm_grid);
     checkMPIerror(&me, &err);
-    // printf("[P%d] I received n = %d, sub_n = %d\n\n", me, n, sub_n);
-    // fflush(stdout);
+    if (flag) {
+        printf("[P%d] I received n = %d, sub_n = %d\n\n", me, n, sub_n);
+        fflush(stdout);
+    }
 
     // 1.2 creazione sottogruppi per righe
-    belongs = (int *) malloc(dim * sizeof(int));
+    belongs = malloc(sizeof *belongs * dim);
     belongs[0] = 0;
     belongs[1] = 1; // fisso l'indice di riga
     err = MPI_Cart_sub(comm_grid, belongs, &comm_rows);
     err = MPI_Comm_rank(comm_rows, &me_row);
     err = MPI_Cart_coords(comm_rows, me_row, 1, &coord_rows);
     checkMPIerror(&me, &err);
-    // printf("[P%d] (%d, %d) row id %d, row coordinate (%d)\n\n", me_grid, coord[0], coord[1], me_row, coord_rows);
-    // fflush(stdout);
+    if (flag) {
+        printf("[P%d] (%d, %d) row id %d, row coordinate (%d)\n\n", me_grid, coord[0], coord[1], me_row, coord_rows);
+        fflush(stdout);
+    }
 
     // 1.3 creazione sottogruppi per colonne
     belongs[0] = 1; // fisso l'indice di colonna
@@ -121,8 +156,10 @@ int main(int argc, char **argv) {
     err = MPI_Comm_rank(comm_cols, &me_col);
     err = MPI_Cart_coords(comm_cols, me_col, 1, &coord_cols);
     checkMPIerror(&me, &err);
-    // printf("[P%d] (%d, %d) column id %d, column coordinate (%d)\n\n", me_grid, coord[0], coord[1], me_col, coord_cols);
-    // fflush(stdout);
+    if (flag) {
+        printf("[P%d] (%d, %d) column id %d, column coordinate (%d)\n\n", me_grid, coord[0], coord[1], me_col, coord_cols);
+        fflush(stdout);
+    }
     // if (me == root) {
     //     free(belongs);
     // }
@@ -133,13 +170,17 @@ int main(int argc, char **argv) {
     checkMPIerror(&me, &err);
 
     // 1.4 scatter matrice tra i processi della prima colonna
-    // printf("[P%d] sub_n = %d\n", me, sub_n);
-    // fflush(stdout);
+    if (flag) {
+        printf("[P%d] sub_n = %d\n", me, sub_n);
+        fflush(stdout);
+    }
     numcells = sub_n * n;
     if (coord[1] == 0) { // processi della prima colonna, hanno l'indice di riga a 0
-        subA = (float *) calloc(numcells, sizeof(float));
-        // printf("[P%d] (%d, %d) memory space allocated for subA\n\n", me, coord[0], coord[1]);
-        // fflush(stdout);
+        subA = calloc(numcells, sizeof *subA);
+        if (flag) {
+            printf("[P%d] (%d, %d) memory space allocated for subA\n\n", me, coord[0], coord[1]);
+            fflush(stdout);
+        }
         err = MPI_Scatter(
             A, numcells, MPI_FLOAT, // send numcells cells of A to every P
             subA, numcells, MPI_FLOAT,
@@ -147,17 +188,19 @@ int main(int argc, char **argv) {
         );
         checkMPIerror(&me, &err);
         // verifica la ricezione della sottomatrice
-        // printf("[P%d] (%d, %d) subA:\n", me, coord[0], coord[1]);
-        // print_matrix_array(subA, sub_n, n);
-        // printf("\n");
-        // fflush(stdout);
+        if (flag) {
+            printf("[P%d] (%d, %d) subA:\n", me, coord[0], coord[1]);
+            print_matrix_array(subA, sub_n, n);
+            printf("\n");
+            fflush(stdout);
+        }
     }
     // if (me == root) {
     //     free(A);
     // }
 
     // 1.5 scatter vettore tra i processi della prima riga
-    local_v = (float *) calloc(sub_n, sizeof(float));
+    local_v = calloc(sub_n, sizeof *local_v);
     if (coord[0] == 0) {
         err = MPI_Scatter(
             v, sub_n, MPI_FLOAT,
@@ -165,37 +208,45 @@ int main(int argc, char **argv) {
             root, comm_rows // distribuisci lungo le righe
         );
         checkMPIerror(&me, &err);
-        // printf("[P%d] (%d, %d) v scattered to first row processes!\n\n", me, coord[0], coord[1]);
-        // fflush(stdout);
+        if (flag) {
+            printf("[P%d] (%d, %d) v scattered to first row processes!\n\n", me, coord[0], coord[1]);
+            fflush(stdout);
+        }
     }
     // if (me == root) {
     //     free(v);
     // }
     // verifica la ricezione del vettore
-    // if (coord[0] == 0) {
-    //     printf("[P%d] (%d, %d) local_v:\n", me, coord[0], coord[1]);
-    //     print_matrix_array(local_v, sub_n, 1);
-    //     printf("\n");
-    //     fflush(stdout);
-    // }
+    if (flag && coord[0] == 0) {
+        printf("[P%d] (%d, %d) local_v:\n", me, coord[0], coord[1]);
+        print_matrix_array(local_v, sub_n, 1);
+        printf("\n");
+        fflush(stdout);
+    }
 
     // 2. partizionamento per colonne delle sottomatrici e per righe del vettore
     // trasponi le sottomatrici
     if (coord[1] == 0) {
-        subAt = (float *) calloc(numcells, sizeof(float)); // sub_n * n
-        // printf("[P%d] (%d, %d) memory space allocated for subAt\n\n", me, coord[0], coord[1]);
-        // fflush(stdout);
+        subAt = calloc(numcells, sizeof *subAt); // sub_n * n
+        if (flag) {
+            printf("[P%d] (%d, %d) memory space allocated for subAt\n\n", me, coord[0], coord[1]);
+            fflush(stdout);
+        }
     }
     sub_nsq = sub_n * sub_n;
-    local_At = (float *) calloc(sub_nsq, sizeof(float));
-    // printf("[P%d] (%d, %d) memory space allocated for local_At\n\n", me, coord[0], coord[1]);
-    // fflush(stdout);
+    local_At = calloc(sub_nsq, sizeof *local_At);
+    if (flag) {
+        printf("[P%d] (%d, %d) memory space allocated for local_At\n\n", me, coord[0], coord[1]);
+        fflush(stdout);
+    }
     if (coord[1] == 0) { // prima colonna
         transpose_matrix_array_2(subA, subAt, sub_n, n);
-        // printf("[P%d] (%d, %d) subAt:\n", me, coord[0], coord[1]);
-        // print_matrix_array(subAt, n, sub_n);
-        // printf("\n");
-        // fflush(stdout);
+        if (flag) {
+            printf("[P%d] (%d, %d) subAt:\n", me, coord[0], coord[1]);
+            print_matrix_array(subAt, n, sub_n);
+            printf("\n");
+            fflush(stdout);
+        }
     }
     err = MPI_Scatter(
         subAt, sub_nsq, MPI_FLOAT,
@@ -209,17 +260,21 @@ int main(int argc, char **argv) {
     // }
     // verifica ricezione blocchi di matrice
     // locale da tutti i processi
-    // printf("[P%d] (%d, %d) local_At:\n", me, coord[0], coord[1]);
-    // print_matrix_array(local_At, sub_n, sub_n);
-    // printf("\n");
-    // fflush(stdout);
+    if (flag) {
+        printf("[P%d] (%d, %d) local_At:\n", me, coord[0], coord[1]);
+        print_matrix_array(local_At, sub_n, sub_n);
+        printf("\n");
+        fflush(stdout);
+    }
     // ritrasponi i blocchi di matrice
-    localA = (float *) malloc(sub_nsq * sizeof(float));
+    localA = malloc(sizeof *localA * sub_nsq);
     transpose_matrix_array_2(local_At, localA, sub_n, sub_n);
-    // printf("[P%d](%d, %d) localA:\n", me, coord[0], coord[1]);
-    // print_matrix_array(localA, sub_n, sub_n);
-    // printf("\n");
-    // fflush(stdout);
+    if (flag) {
+        printf("[P%d](%d, %d) localA:\n", me, coord[0], coord[1]);
+        print_matrix_array(localA, sub_n, sub_n);
+        printf("\n");
+        fflush(stdout);
+    }
     // if (me == root){
     //     free(local_At);
     // }
@@ -230,28 +285,33 @@ int main(int argc, char **argv) {
     );
     checkMPIerror(&me, &err);
     // verifica ricezione vettore
-    // printf("[P%d](%d, %d) local_v:\n", me, coord[0], coord[1]);
-    // print_matrix_array(local_v, sub_n, 1);
-    // printf("\n");
-    // fflush(stdout);
+    if (flag) {
+        printf("[P%d](%d, %d) local_v:\n", me, coord[0], coord[1]);
+        print_matrix_array(local_v, sub_n, 1);
+        printf("\n");
+        fflush(stdout);
+    }
 
     // 3. calcolo risultati parziali
-    local_w = (float *) malloc(sub_n * sizeof(int));
+    local_w = malloc(sizeof *local_w * sub_n);
+    T_inizio = MPI_Wtime(); // inizio del cronometro per il calcolo del tempo di inizio
     prod_mat_vett(local_w, localA, sub_n, sub_n, local_v);
     // verifica calcoli parziali
-    // printf("[P%d](%d, %d) local_w:\n", me, coord[0], coord[1]);
-    // print_matrix_array(local_w, sub_n, 1);
-    // printf("\n");
-    // fflush(stdout);
+    if (flag) {
+        printf("[P%d](%d, %d) local_w:\n", me, coord[0], coord[1]);
+        print_matrix_array(local_w, sub_n, 1);
+        printf("\n");
+        fflush(stdout);
+    }
     // if (me == root) {
     //     free(localA);
     //     free(local_v);
     // }
 
     // 4. reduce risultati di ogni riga
-    if (coord[1] == 0) {
-        row_w = (float *) malloc(sub_n * sizeof(float));
-    }
+    // if (coord[1] == 0) {
+        row_w = malloc(sizeof *row_w * sub_n);
+    // }
     err = MPI_Reduce(
         local_w, row_w, sub_n, MPI_FLOAT,
         MPI_SUM, 0, comm_rows
@@ -260,24 +320,27 @@ int main(int argc, char **argv) {
     // if (me == root) {
     //     free(local_w);
     // }
-    // if (coord[1] == 0) {
-    //     printf("[P%d](%d, %d) row_w:\n", me, coord[0], coord[1]);
-    //     print_matrix_array(row_w, sub_n, 1);
-    //     printf("\n");
-    //     fflush(stdout);
-    // }
+    if (flag && coord[1] == 0) {
+        printf("[P%d](%d, %d) row_w:\n", me, coord[0], coord[1]);
+        print_matrix_array(row_w, sub_n, 1);
+        printf("\n");
+        fflush(stdout);
+    }
 
     // 5. gather dei sottovettori parziali
-    if (me == root) {
-        w = (float *) malloc(n * sizeof(float));
-    }
-    err = MPI_Gather(
+    // if (me == root) {
+        w = malloc(sizeof *w * n);
+    // }
+    err = MPI_Gather( // TODO controllare
         row_w, sub_n, MPI_FLOAT,
         w, sub_n, MPI_FLOAT,
         root, comm_cols
     );
     checkMPIerror(&me, &err);
-    if (me == root) {
+
+    T_fine = MPI_Wtime() - T_inizio; // calcolo del tempo di fine
+
+    if (flag && me == root) {
         // free(row_w);
         // stampa w
         printf("w:\n");
@@ -286,14 +349,27 @@ int main(int argc, char **argv) {
         fflush(stdout);
         // free(w);
 
+        printf("Press any key to quit...\n");
         getchar();
+    }
+
+    /* calcolo del tempo totale di esecuzione*/
+    MPI_Reduce(
+        &T_fine, &T_max, 1, MPI_DOUBLE, MPI_MAX,
+        root, MPI_COMM_WORLD
+    );
+
+    if (me == root) {
+        printf("\n");
+        printf("Tempo calcolo locale: %.3lf ms\n", T_fine * MS_IN_S);
+        printf("MPI_Reduce max time: %.3f ms\n", T_max * MS_IN_S);
     }
 
     // terminazione MPI
     err = MPI_Finalize();
     checkMPIerror(&me, &err);
 
-    return 0;
+    return EXIT_SUCCESS;
 }
 
 /**
