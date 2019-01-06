@@ -131,7 +131,11 @@ int main(int argc, char **argv) {
     prod_mat_vett(local_w, localA, local_n, n, v);
         
     // 0 raccoglie i risultati parziali
-    MPI_Gather(&local_w[0], local_n, MPI_DOUBLE, &w[0], local_n, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    MPI_Gather(
+        local_w, local_n, MPI_DOUBLE,
+        w, local_n, MPI_DOUBLE,
+        master, MPI_COMM_WORLD
+    );
 
 	MPI_Barrier(MPI_COMM_WORLD); // sync
 	T_fine = MPI_Wtime() - T_inizio; // end time

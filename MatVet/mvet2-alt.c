@@ -225,7 +225,7 @@ int main (int argc, char **argv) {
 
     if (me == 0) {
         printf("\n");
-        printf("Tempo calcolo locale: %lf ms\n", T_fine * MS_IN_S);
+        printf("Tempo calcolo locale: %.3lf ms\n", T_fine * MS_IN_S);
         printf("MPI_Reduce max time: %f ms\n", T_max * MS_IN_S);
     }
 
