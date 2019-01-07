@@ -42,7 +42,7 @@ int main(int argc, char **argv) {
 
     if (me == 0) {
         if (argc < 3) {
-            printf("Usage: <programName> <rows> <printDebug>\n");
+            printf("Usage: <programName> <printDebugFlag>\n");
             fflush(stdout);
 
             MPI_Finalize();
@@ -58,7 +58,6 @@ int main(int argc, char **argv) {
         }
     }
 
-    flag = 0; // TODO for debug purposes, set to 1
     if (flag) {
         printf("[P%d] process started.\n\n", me);
         fflush(stdout);
@@ -350,8 +349,11 @@ int main(int argc, char **argv) {
         fflush(stdout);
         // free(w);
 
-        printf("Press any key to quit...\n");
-        getchar();
+        if (flag) {
+            printf("Press any key to quit...\n");
+            getchar();
+            printf("\n");
+        }
     }
 
     /* calcolo del tempo totale di esecuzione*/
@@ -361,7 +363,6 @@ int main(int argc, char **argv) {
     );
 
     if (me == root) {
-        printf("\n");
         printf("Tempo calcolo locale: %.3lf ms\n", T_fine * MS_IN_S);
         printf("MPI_Reduce max time: %.3f ms\n", T_max * MS_IN_S);
     }
