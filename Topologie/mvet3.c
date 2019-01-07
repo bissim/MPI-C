@@ -41,7 +41,7 @@ int main(int argc, char **argv) {
     checkMPIerror(&me, &err);
 
     if (me == 0) {
-        if (argc < 2) {
+        if (argc < 3) {
             printf("Usage: <programName> <rows> <printDebug>\n");
             fflush(stdout);
 
@@ -58,6 +58,7 @@ int main(int argc, char **argv) {
         }
     }
 
+    flag = 0; // TODO for debug purposes, set to 1
     if (flag) {
         printf("[P%d] process started.\n\n", me);
         fflush(stdout);
